@@ -66,7 +66,7 @@ struct ContentView: View {
                     status = "Generating..."
                     if chosenProvider == "kokoro" {
                         if kokoroTTSModel == nil {
-                            kokoroTTSModel = KokoroTTSModel()
+                            kokoroTTSModel = KokoroTTSModel(modelFilePath: "won't work")
                         }
 
                         if let kokoroVoice = TTSVoice.fromIdentifier(chosenVoice) ?? TTSVoice(rawValue: chosenVoice) {

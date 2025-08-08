@@ -10,8 +10,8 @@ public actor KokoroTTSService {
     // Simple state tracking
     private var isInitialized = false
     
-    public init() throws {
-        kokoroTTSEngine = KokoroTTS()
+    public init(modelFilePath: String) throws {
+        kokoroTTSEngine = KokoroTTS(modelFilePath: modelFilePath)
         audioEngine = AVAudioEngine()
         playerNode = AVAudioPlayerNode()
         

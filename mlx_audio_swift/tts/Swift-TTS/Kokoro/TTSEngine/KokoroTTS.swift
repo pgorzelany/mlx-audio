@@ -81,6 +81,7 @@ public class KokoroTTS {
   private var kokoroTokenizer: KokoroTokenizer!
   private var chosenVoice: TTSVoice?
   private var voice: MLXArray!
+    private let modelFilePath: String
 
   // Flag to indicate if model components are initialized
   private var isModelInitialized = false
@@ -88,7 +89,8 @@ public class KokoroTTS {
   // Callback type for streaming audio generation
   public typealias AudioChunkCallback = (MLXArray) -> Void
 
-  init() {
+    init(modelFilePath: String) {
+        self.modelFilePath = modelFilePath
       compile(enable: true)
       
       // Only set memory limits on devices with less than 5GB of RAM
@@ -149,7 +151,7 @@ public class KokoroTTS {
     }
 
     autoreleasepool {
-      let sanitizedWeights = KokoroWeightLoader.loadWeights()
+        let sanitizedWeights = KokoroWeightLoader.loadWeights(filePath: modelFilePath)
 
       bert = CustomAlbert(weights: sanitizedWeights, config: AlbertModelArgs())
       bertEncoder = Linear(weight: sanitizedWeights["bert_encoder.weight"]!, bias: sanitizedWeights["bert_encoder.bias"]!)

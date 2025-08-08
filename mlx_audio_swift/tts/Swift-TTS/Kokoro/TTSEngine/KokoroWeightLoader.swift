@@ -9,8 +9,7 @@ import MLXNN
 class KokoroWeightLoader {
   private init() {}
 
-  static func loadWeights() -> [String: MLXArray] {
-    let filePath = Bundle.main.path(forResource: "kokoro-v1_0", ofType: "safetensors")!
+    static func loadWeights(filePath: String) -> [String: MLXArray] {
     let weights = try! MLX.loadArrays(url: URL(fileURLWithPath: filePath))
     var sanitizedWeights: [String: MLXArray] = [:]
 

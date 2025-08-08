@@ -80,6 +80,7 @@ class SineGen {
     let noise = noiseAmp * MLXRandom.normal(sineWaves.shape)
 
     let result = sineWaves * uv + noise
+    
     return (result, uv, noise)
   }
 }

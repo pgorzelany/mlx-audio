@@ -6,7 +6,7 @@ import MLX
 import MLXNN
 
 // Available voices
-public enum TTSVoice: String, CaseIterable {
+public enum TTSVoice: String, CaseIterable, Sendable {
   case afAlloy
   case afAoede
   case afBella
@@ -88,7 +88,22 @@ public class KokoroTTS {
   // Callback type for streaming audio generation
   public typealias AudioChunkCallback = (MLXArray) -> Void
 
-  init() {}
+  init() {
+      compile(enable: true)
+      
+      // Only set memory limits on devices with less than 5GB of RAM
+      let physicalMemory = ProcessInfo.processInfo.physicalMemory
+      let fiveGB: UInt64 = 5 * 1024 * 1024 * 1024
+      
+      if physicalMemory < fiveGB {
+          MLX.GPU.set(memoryLimit: 512 * 1024 * 1024, relaxed: false)
+          MLX.GPU.set(cacheLimit: 128 * 1024 * 1024)
+          print("Applied MLX memory limits for device with \(physicalMemory / 1024 / 1024) MB RAM")
+      } else {
+          MLX.GPU.set(memoryLimit: 2048 * 1024 * 1024, relaxed: false)
+          MLX.GPU.set(cacheLimit: 1024 * 1024 * 1024)
+      }
+  }
 
   // Reset the model to free up memory
   public func resetModel(preserveTextProcessing: Bool = true) {
@@ -194,33 +209,34 @@ public class KokoroTTS {
     inputIds: [Int],
     speed: Float
   ) throws -> MLXArray {
+    // Time the token processing
+    BenchmarkTimer.shared.create(id: "generateAudioForTokens", parent: "audioGeneration")
+    defer { BenchmarkTimer.shared.stop(id: "generateAudioForTokens") }
+    
     // Create a fresh autorelease pool for the entire process
     return try autoreleasepool { () -> MLXArray in
       // Start with the standard processing
       try autoreleasepool {
         let paddedInputIdsBase = [0] + inputIds + [0]
         let paddedInputIds = MLXArray(paddedInputIdsBase).expandedDimensions(axes: [0])
-        paddedInputIds.eval()
 
         let inputLengths = MLXArray(paddedInputIds.dim(-1))
-        inputLengths.eval()
 
         let inputLengthMax: Int = MLX.max(inputLengths).item()
         var textMask = MLXArray(0 ..< inputLengthMax)
-        textMask.eval()
 
         textMask = textMask + 1 .> inputLengths
-        textMask.eval()
 
         textMask = textMask.expandedDimensions(axes: [0])
-        textMask.eval()
 
         let swiftTextMask: [Bool] = textMask.asArray(Bool.self)
         let swiftTextMaskInt = swiftTextMask.map { !$0 ? 1 : 0 }
         let attentionMask = MLXArray(swiftTextMaskInt).reshaped(textMask.shape)
-        attentionMask.eval()
 
         return try autoreleasepool { () -> MLXArray in
+          // Time BERT processing
+          BenchmarkTimer.shared.create(id: "bertProcessing", parent: "generateAudioForTokens")
+          
           // Ensure model is initialized
           guard let bert = bert,
                 let bertEncoder = bertEncoder else {
@@ -228,14 +244,14 @@ public class KokoroTTS {
           }
 
           let (bertDur, _) = bert(paddedInputIds, attentionMask: attentionMask)
-          bertDur.eval()
 
           autoreleasepool {
             _ = attentionMask
           }
 
           let dEn = bertEncoder(bertDur).transposed(0, 2, 1)
-          dEn.eval()
+          
+          BenchmarkTimer.shared.stop(id: "bertProcessing")
 
           autoreleasepool {
             _ = bertDur
@@ -254,12 +270,13 @@ public class KokoroTTS {
             }
             refS = voice[0, 0 ... 1, 0...]
           }
-          refS.eval()
 
           let s = refS[0 ... 1, 128...]
-          s.eval()
 
           return try autoreleasepool { () -> MLXArray in
+            // Time duration prediction
+            BenchmarkTimer.shared.create(id: "durationPrediction", parent: "generateAudioForTokens")
+            
             // Ensure all components are initialized
             guard let durationEncoder = durationEncoder,
                   let predictorLSTM = predictorLSTM,
@@ -268,7 +285,6 @@ public class KokoroTTS {
             }
 
             let d = durationEncoder(dEn, style: s, textLengths: inputLengths, m: textMask)
-            d.eval()
 
             autoreleasepool {
               _ = dEn
@@ -276,29 +292,30 @@ public class KokoroTTS {
             }
 
             let (x, _) = predictorLSTM(d)
-            x.eval()
 
             let duration = durationProj(x)
-            duration.eval()
 
             autoreleasepool {
               _ = x
             }
 
             let durationSigmoid = MLX.sigmoid(duration).sum(axis: -1) / speed
-            durationSigmoid.eval()
 
             autoreleasepool {
               _ = duration
             }
 
             let predDur = MLX.clip(durationSigmoid.round(), min: 1).asType(.int32)[0]
-            predDur.eval()
 
             autoreleasepool {
               _ = durationSigmoid
             }
+            
+            BenchmarkTimer.shared.stop(id: "durationPrediction")
 
+            // Time matrix operations (computationally expensive)
+            BenchmarkTimer.shared.create(id: "matrixOperations", parent: "generateAudioForTokens")
+            
             // Index and matrix generation - high memory usage
             // Build indices in chunks to reduce memory
             var allIndices: [MLXArray] = []
@@ -313,19 +330,15 @@ public class KokoroTTS {
                   chunkIndices.enumerated().map { i, n in
                     let nSize: Int = n.item()
                     let arrayIndex = MLXArray([i + startIdx])
-                    arrayIndex.eval()
                     let repeated = MLX.repeated(arrayIndex, count: nSize)
-                    repeated.eval()
                     return repeated
                   }
                 )
-                indices.eval()
                 allIndices.append(indices)
               }
             }
 
             let indices = MLX.concatenated(allIndices)
-            indices.eval()
 
             allIndices.removeAll()
 
@@ -370,10 +383,6 @@ public class KokoroTTS {
             let colIndicesArray = MLXArray(colIndices)
             let coo_indices = MLX.stacked([rowIndicesArray, colIndicesArray], axis: 0).transposed(1, 0)
             let coo_values = MLXArray(values)
-            rowIndicesArray.eval()
-            colIndicesArray.eval()
-            coo_indices.eval()
-            coo_values.eval()
 
             // Go back to the original dense matrix approach but with better memory management
             // Create sparse matrix efficiently using Swift arrays first
@@ -395,7 +404,6 @@ public class KokoroTTS {
 
             // Create MLXArray from the dense matrix
             let predAlnTrg = MLXArray(swiftPredAlnTrg).reshaped([inputIdsShape, indicesShape])
-            predAlnTrg.eval()
 
             // Clear Swift array immediately
             swiftPredAlnTrg = []
@@ -407,17 +415,20 @@ public class KokoroTTS {
             }
 
             let predAlnTrgBatched = predAlnTrg.expandedDimensions(axis: 0)
-            predAlnTrgBatched.eval()
 
             let en = d.transposed(0, 2, 1).matmul(predAlnTrgBatched)
-            en.eval()
 
             autoreleasepool {
               _ = d
               _ = predAlnTrgBatched
             }
+            
+            BenchmarkTimer.shared.stop(id: "matrixOperations")
 
             return try autoreleasepool { () -> MLXArray in
+              // Time final audio decoding
+              BenchmarkTimer.shared.create(id: "audioDecoding", parent: "generateAudioForTokens")
+              
               // Ensure components are initialized
               guard let prosodyPredictor = prosodyPredictor,
                     let textEncoder = textEncoder,
@@ -426,15 +437,12 @@ public class KokoroTTS {
               }
 
               let (F0Pred, NPred) = prosodyPredictor.F0NTrain(x: en, s: s)
-              F0Pred.eval()
-              NPred.eval()
 
               autoreleasepool {
                 _ = en
               }
 
               let tEn = textEncoder(paddedInputIds, inputLengths: inputLengths, m: textMask)
-              tEn.eval()
 
               autoreleasepool {
                 _ = paddedInputIds
@@ -442,7 +450,6 @@ public class KokoroTTS {
               }
 
               let asr = MLX.matmul(tEn, predAlnTrg)
-              asr.eval()
 
               autoreleasepool {
                 _ = tEn
@@ -450,14 +457,12 @@ public class KokoroTTS {
               }
 
               let voiceS = refS[0 ... 1, 0 ... 127]
-              voiceS.eval()
 
               autoreleasepool {
                 _ = refS
               }
 
               let audio = decoder(asr: asr, F0Curve: F0Pred, N: NPred, s: voiceS)[0]
-              audio.eval()
 
               autoreleasepool {
                 _ = asr
@@ -466,6 +471,8 @@ public class KokoroTTS {
                 _ = voiceS
                 _ = s
               }
+              
+              BenchmarkTimer.shared.stop(id: "audioDecoding")
 
               let audioShape = audio.shape
 
@@ -494,7 +501,6 @@ public class KokoroTTS {
                 }
 
                 let fallbackAudio = MLXArray(errorAudioData)
-                fallbackAudio.eval()
                 return fallbackAudio
               }
 
@@ -506,6 +512,62 @@ public class KokoroTTS {
     }
   }
 
+  // New async stream interface - returns when generation is complete
+  public func generateAudioStream(voice: TTSVoice, text: String, speed: Float = 1.0) -> AsyncThrowingStream<MLXArray, Error> {
+    return AsyncThrowingStream { continuation in
+      Task {
+        do {
+          try ensureModelInitialized()
+          
+          let sentences = SentenceTokenizer.splitIntoSentences(text: text)
+          guard !sentences.isEmpty else {
+            throw KokoroTTSError.sentenceSplitError
+          }
+          
+          // Reset voice for new generation
+//          self.voice = nil
+          
+          // Process each sentence sequentially
+          for sentence in sentences {
+            autoreleasepool {
+              do {
+                let audio = try self.generateAudioForSentence(voice: voice, text: sentence, speed: speed)
+                
+                // Yield the audio chunk
+                continuation.yield(audio)
+                
+                // Clean up
+                autoreleasepool {
+                  _ = audio
+                }
+              } catch {
+                continuation.finish(throwing: error)
+                return
+              }
+            }
+
+          }
+          
+          // All sentences processed successfully
+          continuation.finish()
+          
+          // Reset model after completing long text to free memory
+          if sentences.count > 5 {
+            Task {
+              try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+              self.resetModel()
+            }
+          }
+          
+        } catch {
+          continuation.finish(throwing: error)
+        }
+      }
+    }
+  }
+  
+  // Legacy callback-based method - deprecated, use generateAudioStream instead
+  @available(*, deprecated, message: "Use generateAudioStream instead for better async control")
   public func generateAudio(voice: TTSVoice, text: String, speed: Float = 1.0, chunkCallback: @escaping AudioChunkCallback) throws {
     try ensureModelInitialized()
 
@@ -524,9 +586,6 @@ public class KokoroTTS {
           do {
             // Generate audio for this sentence
             let audio = try self.generateAudioForSentence(voice: voice, text: sentence, speed: speed)
-
-            // Force evaluation to ensure tensor is computed before sending
-            audio.eval()
 
             // Send this chunk to the callback immediately on the main thread
             // Dispatch to main thread to avoid threading issues with UI updates
@@ -555,6 +614,16 @@ public class KokoroTTS {
   }
 
   private func generateAudioForSentence(voice: TTSVoice, text: String, speed: Float) throws -> MLXArray {
+    // Reset timer for clean measurements
+    BenchmarkTimer.shared.reset()
+    
+    // Start timing the entire method
+    BenchmarkTimer.shared.create(id: "generateAudioForSentence")
+    defer {
+      BenchmarkTimer.shared.stop(id: "generateAudioForSentence")
+      BenchmarkTimer.shared.logResults(id: "generateAudioForSentence")
+    }
+    
     try ensureModelInitialized()
 
     if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -563,25 +632,35 @@ public class KokoroTTS {
 
     return try autoreleasepool { () -> MLXArray in
       if chosenVoice != voice {
+        // Time voice loading
+        BenchmarkTimer.shared.create(id: "voiceLoading", parent: "generateAudioForSentence")
         autoreleasepool {
           self.voice = VoiceLoader.loadVoice(voice)
-          self.voice?.eval() // Force immediate evaluation
         }
 
         try kokoroTokenizer.setLanguage(for: voice)
         chosenVoice = voice
+        BenchmarkTimer.shared.stop(id: "voiceLoading")
       }
 
       do {
+        // Time text processing (phonemization and tokenization)
+        BenchmarkTimer.shared.create(id: "textProcessing", parent: "generateAudioForSentence")
         let phonemizedResult = try kokoroTokenizer.phonemize(text)
-
         let inputIds = Tokenizer.tokenize(phonemizedText: phonemizedResult.phonemes)
+        BenchmarkTimer.shared.stop(id: "textProcessing")
+        
         guard inputIds.count <= Constants.maxTokenCount else {
           throw KokoroTTSError.tooManyTokens
         }
 
-        // Continue with normal audio generation
-        return try self.processTokensToAudio(inputIds: inputIds, speed: speed)
+        // Time audio generation
+        BenchmarkTimer.shared.create(id: "audioGeneration", parent: "generateAudioForSentence")
+        let result = try self.processTokensToAudio(inputIds: inputIds, speed: speed)
+        result.eval()
+        BenchmarkTimer.shared.stop(id: "audioGeneration")
+
+        return result
       } catch {
         // Return a short error tone instead of crashing
         var errorAudioData = [Float](repeating: 0.0, count: 4800) // 0.2s at 24kHz

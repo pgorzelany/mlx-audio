@@ -155,12 +155,9 @@ func mlxIstft(
   let windowModLen = 20 / 5
 
   let wSquared = w * w
-  w.eval()
-  wSquared.eval()
 
   let totalWsquared = MLX.concatenated(Array(repeating: wSquared, count: t / winLen))
 
-  xTransposed.eval()
   BenchmarkTimer.shared.stop(id: "StartProcessing")
 
 //  let fft = BenchmarkTimer.shared.create(id: "FFT", parent: "Istft")!
@@ -168,7 +165,6 @@ func mlxIstft(
 
 //  fft.startTimer()
   let output = MLXFFT.irfft(xTransposed, axis: 1) * w
-  output.eval()
 
   var outputs: [MLXArray] = []
   var windowSums: [MLXArray] = []
@@ -199,8 +195,6 @@ func mlxIstft(
     reconstructed += outputs[i]
     windowSum += windowSums[i]
   }
-  reconstructed.eval()
-  windowSum.eval()
 
 //  overlap.stop()
 
@@ -209,7 +203,6 @@ func mlxIstft(
   reconstructed =
     reconstructed[winLen / 2 ..< (reconstructed.shape[0] - winLen / 2)] /
     windowSum[winLen / 2 ..< (reconstructed.shape[0] - winLen / 2)]
-  reconstructed.eval()
 
   BenchmarkTimer.shared.stop(id: "EndProcessing")
 
@@ -277,7 +270,6 @@ class MLXSTFT {
 
       // Combine magnitude and phase
       let stft = magnitude[batchIdx] * MLX.exp(MLXArray(real: 0, imaginary: 1) * phaseCont)
-      stft.eval()
 //      unwrapTimer.stop()
 
 //      fftTimer.startTimer()
@@ -288,7 +280,6 @@ class MLXSTFT {
         winLength: winLength,
         window: window
       )
-      audio.eval()
 //      fftTimer.stop()
       reconstructed.append(audio)
     }

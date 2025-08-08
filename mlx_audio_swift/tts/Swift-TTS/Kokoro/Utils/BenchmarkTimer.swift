@@ -2,10 +2,12 @@
 //  Kokoro-tts-lib
 //
 import Foundation
+import OSLog
 
 class BenchmarkTimer {
   class Timing {
     let id: String
+    private let logger = Logger(subsystem: "com.babaru", category: "kokoro-tts")
 
     private var start: DispatchTime
     private var finish: DispatchTime?
@@ -29,13 +31,17 @@ class BenchmarkTimer {
       delta += finish!.uptimeNanoseconds - start.uptimeNanoseconds
     }
 
-    func log(spaces: Int = 0) {
+    func logTiming(spaces: Int = 0) {
       guard let _ = finish else { return }
 
       let spaceString = String(repeating: " ", count: spaces)
-      print(spaceString + id + ": " + deltaInSec + " sec")
+      let message = "\(spaceString)\(id): \(deltaInSec) sec"
+      
+      // Use OSLog with appropriate log level
+      logger.info("\(message, privacy: .public)")
+      
       for childTask in childTasks {
-        childTask.log(spaces: spaces + 2)
+        childTask.logTiming(spaces: spaces + 2)
       }
     }
 
@@ -44,6 +50,7 @@ class BenchmarkTimer {
   }
 
   static let shared = BenchmarkTimer()
+  private let logger = Logger(subsystem: "com.babaru", category: "kokoro-tts")
 
   private init() {}
 
@@ -68,9 +75,16 @@ class BenchmarkTimer {
     timing.stop()
   }
 
-  func printLog(id: String) {
+  func logResults(id: String) {
     guard let timing = timers[id] else { return }
-    timing.log()
+    logger.info("📊 Performance Timing Results:")
+    timing.logTiming()
+  }
+  
+  // Deprecated method for backward compatibility
+  @available(*, deprecated, message: "Use logResults instead")
+  func printLog(id: String) {
+    logResults(id: id)
   }
 
   func reset() {

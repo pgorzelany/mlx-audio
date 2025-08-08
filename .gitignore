@@ -42,3 +42,7 @@ output/
 swift/Swift-TTS/Swift-TTS/Kokoro/Resources/kokoro-v1_0.safetensors
 swift/Swift-TTS/Swift-TTS/Orpheus/Resources/orpheus-3b-0.1-ft-4bit.safetensors
 *.safetensors
+.build
+.swiftpm/xcode/xcuserdata/mlody.xcuserdatad/xcschemes
+mlx_audio_swift/tts/Swift-TTS.xcodeproj/project.xcworkspace/xcuserdata/mlody.xcuserdatad
+xcschememanagement.plist

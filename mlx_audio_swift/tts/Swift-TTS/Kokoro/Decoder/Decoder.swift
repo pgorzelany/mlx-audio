@@ -85,7 +85,6 @@ class Decoder {
     let asrResidual = MLX.swappedAxes(asrRes[0](MLX.swappedAxes(asr, 2, 1), conv: MLX.conv1d), 2, 1)
     var res = true
 
-    x.eval()
     BenchmarkTimer.shared.stop(id: "Encode")
 
     BenchmarkTimer.shared.create(id: "Blocks", parent: "Decoder")
@@ -101,8 +100,9 @@ class Decoder {
       }
     }
 
-    x.eval()
     BenchmarkTimer.shared.stop(id: "Blocks")
+
+    MLX.GPU.clearCache()
 
     return generator(x, s, F0Curve)
   }

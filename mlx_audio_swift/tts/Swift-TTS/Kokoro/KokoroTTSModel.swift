@@ -572,13 +572,11 @@ public class KokoroTTSModel: ObservableObject {
         if audioShape.count == 1 {
             // 1D array [samples]
             let frameCount = audioShape[0]
-            audioBuffer.eval()
             return (frameCount, audioBuffer.asArray(Float.self))
         } else if audioShape.count == 2 {
             // 2D array [1, samples]
             let frameCount = audioShape[1]
             let firstBatch = audioBuffer[0]
-            firstBatch.eval()
             return (frameCount, firstBatch.asArray(Float.self))
         }
 

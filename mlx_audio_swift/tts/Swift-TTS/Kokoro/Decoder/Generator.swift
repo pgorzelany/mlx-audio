@@ -186,6 +186,7 @@ class Generator {
         }
       }
       newX = xs! / numKernels
+
     }
 
     newX = LeakyReLU(negativeSlope: 0.01)(newX)
@@ -197,14 +198,10 @@ class Generator {
     let spec = MLX.exp(newX[0..., 0 ..< (postNFFt / 2 + 1), 0...])
     let phase = MLX.sin(newX[0..., (postNFFt / 2 + 1)..., 0...])
 
-    spec.eval()
-    phase.eval()
-
     BenchmarkTimer.shared.stop(id: "GeneratorStart")
 
     BenchmarkTimer.shared.create(id: "InverseSTFT", parent: "Decoder")
     let result = stft.inverse(magnitude: spec, phase: phase)
-    result.eval()
     BenchmarkTimer.shared.stop(id: "InverseSTFT")
 
     return result

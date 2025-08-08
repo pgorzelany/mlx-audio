@@ -152,6 +152,7 @@
 				Kokoro/Resources/jf_nezumi.json,
 				Kokoro/Resources/jf_tebukuro.json,
 				Kokoro/Resources/jm_kumo.json,
+				"Kokoro/Resources/kokoro-v1_0.safetensors",
 				Kokoro/Resources/pf_dora.json,
 				Kokoro/Resources/pm_alex.json,
 				Kokoro/Resources/pm_santa.json,
@@ -716,7 +717,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 3F23SFH9E6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -746,7 +747,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 3F23SFH9E6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

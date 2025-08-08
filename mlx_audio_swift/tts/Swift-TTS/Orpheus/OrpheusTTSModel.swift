@@ -32,7 +32,7 @@ class OrpheusTTSModel: ObservableObject {
             let mainTimer = BenchmarkTimer.shared.create(id: "TTSGeneration")
             let audioBuffer = try! await orpheusTTSEngine.generateAudio(voice: voice, text: text)
             BenchmarkTimer.shared.stop(id: "TTSGeneration")
-            BenchmarkTimer.shared.printLog(id: "TTSGeneration")
+            BenchmarkTimer.shared.logResults(id: "TTSGeneration")
 
             BenchmarkTimer.shared.reset()
 
